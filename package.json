@@ -1,0 +1,48 @@
+{
+  "name": "fortune-prediction",
+  "version": "0.1.0",
+  "description": "基于倪海厦理论的运势预测和周易占卜网站",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "autoprefixer": "^10.4.21",
+    "clsx": "^2.0.0",
+    "fuse.js": "^7.1.0",
+    "lucide-react": "^0.511.0",
+    "mammoth": "^1.6.0",
+    "next": "15.1.3",
+    "node-fetch": "^2.7.0",
+    "node-nlp": "^4.27.0",
+    "pdf-parse": "^1.1.1",
+    "pdf2pic": "^2.2.4",
+    "react": "^19",
+    "react-dom": "^19",
+    "tailwind-merge": "^2.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/pdf-parse": "^1.1.4",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^8",
+    "eslint-config-next": "15.1.3",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5"
+  },
+  "keywords": [
+    "紫薇斗数",
+    "周易",
+    "占卜",
+    "运势预测",
+    "倪海厦",
+    "命理"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}
