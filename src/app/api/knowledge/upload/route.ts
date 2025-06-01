@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pdfParser } from '@/lib/knowledge/pdf-parser';
 import fs from 'fs';
 import path from 'path';
+import FormData from 'form-data';
+import fetch from 'node-fetch';
+
+const API_KEY = "sk-qnczgrftmuzuyhyfdroapmqqqnefqpvbwtjikrnlbzbimpkw";
+const MODEL = "Qwen/Qwen2.5-VL-72B-Instruct";
 
 export async function POST(request: NextRequest) {
   try {
@@ -44,63 +48,61 @@ export async function POST(request: NextRequest) {
     const buffer = await file.arrayBuffer();
     fs.writeFileSync(filePath, Buffer.from(buffer));
 
-    try {
-      // 解析PDF文档
-      const document = await pdfParser.parsePDF(filePath);
-      
-      // 添加到知识库
-      pdfParser.addDocument(document);
-      
-      // 删除临时文件
-      fs.unlinkSync(filePath);
-      
-      return NextResponse.json({
-        success: true,
-        document: {
-          id: document.id,
-          title: document.title,
-          category: document.category,
-          pages: document.pages,
-          chunks: document.chunks.length,
-          extractedAt: document.extractedAt
-        },
-        stats: pdfParser.getStats()
-      });
+    // 调用 SiliconFlow API 进行 OCR
+    const formData = new FormData();
+    formData.append('file', fs.createReadStream(filePath));
 
-    } catch (parseError) {
-      // 删除临时文件
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-      
-      console.error('PDF解析错误:', parseError);
-      return NextResponse.json(
-        { error: 'PDF文件解析失败，请确保文件格式正确' },
-        { status: 500 }
-      );
+    const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: '请识别图片中的所有中文文字内容，完整准确地提取出来，保持原有的格式和结构。'
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:image/png;base64,${fs.readFileSync(filePath).toString('base64')}`
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 4000,
+        temperature: 0.1
+      })
+    });
+
+    // 删除临时文件
+    fs.unlinkSync(filePath);
+
+    if (!response.ok) {
+      throw new Error('OCR 识别失败');
     }
 
+    const data = await response.json();
+    const content = data.choices[0]?.message?.content || '';
+
+    return NextResponse.json({
+      success: true,
+      content,
+      filename: file.name
+    });
+
   } catch (error) {
-    console.error('文件上传错误:', error);
+    console.error('OCR处理错误:', error);
     return NextResponse.json(
-      { error: '文件上传失败' },
+      { error: '文件处理失败，请重试' },
       { status: 500 }
     );
   }
 }
-
-export async function GET() {
-  try {
-    const stats = pdfParser.getStats();
-    return NextResponse.json({
-      success: true,
-      stats
-    });
-  } catch (error) {
-    console.error('获取知识库统计失败:', error);
-    return NextResponse.json(
-      { error: '获取知识库信息失败' },
-      { status: 500 }
-    );
-  }
-} 
