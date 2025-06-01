@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
-import { fromPath } from 'pdf2pic';
+import { PDFDocument } from 'pdf-lib';
+import sharp from 'sharp';
 import FormData from 'form-data';
 import fetch from 'node-fetch';
 
@@ -37,55 +36,43 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 创建上传目录
-    const uploadDir = path.join(process.cwd(), 'uploads');
-    const tempImagesDir = path.join(process.cwd(), 'temp_images');
-    
-    [uploadDir, tempImagesDir].forEach(dir => {
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-    });
-
-    // 保存PDF文件
-    const pdfFileName = `${Date.now()}_${file.name}`;
-    const pdfPath = path.join(uploadDir, pdfFileName);
-    
-    const buffer = await file.arrayBuffer();
-    fs.writeFileSync(pdfPath, Buffer.from(buffer));
-
-    // 配置PDF到图片的转换
-    const options = {
-      density: 300,
-      saveFilename: "page",
-      savePath: tempImagesDir,
-      format: "png",
-      width: 2048,
-      height: 2048
-    };
-
-    const convert = fromPath(pdfPath, options);
-    
-    // 获取PDF页数
-    const pageCount = await convert.bulk(-1, true);
+    // 读取PDF文件
+    const arrayBuffer = await file.arrayBuffer();
+    const pdfDoc = await PDFDocument.load(arrayBuffer);
+    const pageCount = pdfDoc.getPageCount();
     
     let allContent = [];
 
     // 处理每一页
-    for (let pageNum = 1; pageNum <= pageCount.length; pageNum++) {
-      const imagePath = path.join(tempImagesDir, `page${pageNum}.png`);
-      
-      if (!fs.existsSync(imagePath)) {
-        console.warn(`Page ${pageNum} image not found`);
-        continue;
-      }
-
-      // 设置超时控制
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
-
+    for (let pageNum = 0; pageNum < pageCount; pageNum++) {
       try {
-        const imageBase64 = fs.readFileSync(imagePath).toString('base64');
+        // 将PDF页面渲染为PNG
+        const pdfPage = pdfDoc.getPages()[pageNum];
+        const { width, height } = pdfPage.getSize();
+        
+        // 创建一个新的PDF文档，只包含当前页面
+        const singlePagePdf = await PDFDocument.create();
+        const [copiedPage] = await singlePagePdf.copyPages(pdfDoc, [pageNum]);
+        singlePagePdf.addPage(copiedPage);
+        
+        // 将单页PDF转换为PNG格式
+        const pngBytes = await singlePagePdf.saveAsBase64();
+        const pngBuffer = Buffer.from(pngBytes, 'base64');
+        
+        // 使用sharp处理图像
+        const image = await sharp(pngBuffer)
+          .png()
+          .resize(2048, 2048, {
+            fit: 'inside',
+            withoutEnlargement: true
+          })
+          .toBuffer();
+        
+        const imageBase64 = image.toString('base64');
+
+        // 设置超时控制
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
 
         const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
           method: 'POST',
@@ -121,27 +108,17 @@ export async function POST(request: NextRequest) {
         clearTimeout(timeoutId);
 
         if (!response.ok) {
-          throw new Error(`页面 ${pageNum} OCR识别失败`);
+          throw new Error(`页面 ${pageNum + 1} OCR识别失败`);
         }
 
         const data = await response.json();
         const pageContent = data.choices[0]?.message?.content || '';
-        allContent.push(`--- 第${pageNum}页 ---\n${pageContent}`);
-
-        // 删除处理完的图片
-        fs.unlinkSync(imagePath);
+        allContent.push(`--- 第${pageNum + 1}页 ---\n${pageContent}`);
 
       } catch (error) {
-        clearTimeout(timeoutId);
-        console.error(`处理第${pageNum}页时出错:`, error);
+        console.error(`处理第${pageNum + 1}页时出错:`, error);
         throw error;
       }
-    }
-
-    // 清理临时文件
-    fs.unlinkSync(pdfPath);
-    if (fs.existsSync(tempImagesDir)) {
-      fs.rmSync(tempImagesDir, { recursive: true, force: true });
     }
 
     return NextResponse.json({
