@@ -1,6 +1,15 @@
 import { AIConfig, getAIConfig, validateAIConfig } from './config';
 import { AIAnalysisRequest, AIAnalysisResponse, ZiweiChart, DivinationResult } from '@/types';
 
+// 定义API响应类型
+interface SiliconFlowResponse {
+  choices?: Array<{
+    message?: {
+      content?: string;
+    };
+  }>;
+}
+
 // AI服务类
 export class AIService {
   private config: AIConfig;
@@ -60,8 +69,8 @@ export class AIService {
         throw new Error(`AI API请求失败: ${response.status} ${response.statusText} - ${errorText}`);
       }
 
-      const data = await response.json();
-      return data.choices[0]?.message?.content || '';
+      const data = await response.json() as SiliconFlowResponse;
+      return data.choices?.[0]?.message?.content || '';
     } catch (error) {
       console.error('AI服务请求错误:', error);
       throw new Error('AI服务暂时不可用，请稍后重试');

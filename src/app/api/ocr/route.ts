@@ -8,6 +8,15 @@ const API_KEY = "sk-qnczgrftmuzuyhyfdroapmqqqnefqpvbwtjikrnlbzbimpkw";
 const MODEL = "Qwen/Qwen2.5-VL-72B-Instruct";
 const API_TIMEOUT = 30000; // 30 seconds timeout
 
+// 定义API响应类型
+interface SiliconFlowResponse {
+  choices?: Array<{
+    message?: {
+      content?: string;
+    };
+  }>;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -111,8 +120,8 @@ export async function POST(request: NextRequest) {
           throw new Error(`页面 ${pageNum + 1} OCR识别失败`);
         }
 
-        const data = await response.json();
-        const pageContent = data.choices[0]?.message?.content || '';
+        const data = await response.json() as SiliconFlowResponse;
+        const pageContent = data.choices?.[0]?.message?.content || '';
         allContent.push(`--- 第${pageNum + 1}页 ---\n${pageContent}`);
 
       } catch (error) {
