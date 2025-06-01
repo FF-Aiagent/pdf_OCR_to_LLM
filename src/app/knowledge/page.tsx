@@ -7,6 +7,8 @@ import Button from '@/components/ui/Button'
 export default function KnowledgePage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
+  const [searchResults, setSearchResults] = useState([])
+  const [isLoading, setIsLoading] = useState(false)
 
   const categories = [
     { id: 'all', name: '全部', count: 156 },
@@ -48,12 +50,56 @@ export default function KnowledgePage() {
     }
   ]
 
-  const filteredDocuments = sampleDocuments.filter(doc => {
+  const handleSearch = async () => {
+    setIsLoading(true)
+    try {
+      const response = await fetch('/api/knowledge/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: searchTerm,
+          category: selectedCategory === 'all' ? undefined : selectedCategory
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setSearchResults(data.results)
+      }
+    } catch (error) {
+      console.error('搜索失败:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const filteredDocuments = searchResults.length > 0 ? searchResults : sampleDocuments.filter(doc => {
     const matchesSearch = doc.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          doc.content.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesCategory = selectedCategory === 'all' || doc.category === selectedCategory
     return matchesSearch && matchesCategory
   })
+
+  const handleDownload = async (docId: number, format: 'json' | 'txt') => {
+    try {
+      const response = await fetch(`/api/knowledge/download/${docId}?format=${format}`)
+      if (response.ok) {
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `知识库文档_${docId}.${format}`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        window.URL.revokeObjectURL(url)
+      }
+    } catch (error) {
+      console.error('下载失败:', error)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 py-12">
@@ -136,9 +182,12 @@ export default function KnowledgePage() {
                     placeholder="搜索文档标题或内容..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                     className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                  <Button>搜索</Button>
+                  <Button onClick={handleSearch} disabled={isLoading}>
+                    {isLoading ? '搜索中...' : '搜索'}
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -165,9 +214,15 @@ export default function KnowledgePage() {
                   <CardContent>
                     <p className="text-gray-700 mb-4">{doc.content}</p>
                     <div className="flex space-x-2">
-                      <Button size="sm">查看详情</Button>
-                      <Button size="sm" variant="outline">下载JSON</Button>
-                      <Button size="sm" variant="outline">下载TXT</Button>
+                      <Button size="sm" onClick={() => window.open(`/knowledge/${doc.id}`, '_blank')}>
+                        查看详情
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleDownload(doc.id, 'json')}>
+                        下载JSON
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleDownload(doc.id, 'txt')}>
+                        下载TXT
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>

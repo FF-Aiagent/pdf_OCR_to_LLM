@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pdfParser } from '@/lib/knowledge/pdf-parser';
-import fs from 'fs';
-import path from 'path';
+import { PDFDocument } from 'pdf-lib';
+import sharp from 'sharp';
+import FormData from 'form-data';
+import fetch from 'node-fetch';
+
+const API_KEY = "sk-qnczgrftmuzuyhyfdroapmqqqnefqpvbwtjikrnlbzbimpkw";
+const MODEL = "Qwen/Qwen2.5-VL-72B-Instruct";
+const API_TIMEOUT = 30000; // 30 seconds timeout
 
 export async function POST(request: NextRequest) {
   try {
@@ -31,76 +36,102 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 创建上传目录
-    const uploadDir = path.join(process.cwd(), 'uploads');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-
-    // 保存文件
-    const fileName = `${Date.now()}_${file.name}`;
-    const filePath = path.join(uploadDir, fileName);
+    // 读取PDF文件
+    const arrayBuffer = await file.arrayBuffer();
+    const pdfDoc = await PDFDocument.load(arrayBuffer);
+    const pageCount = pdfDoc.getPageCount();
     
-    const buffer = await file.arrayBuffer();
-    fs.writeFileSync(filePath, Buffer.from(buffer));
+    let allContent = [];
 
-    try {
-      // 解析PDF文档
-      const document = await pdfParser.parsePDF(filePath);
-      
-      // 添加到知识库
-      pdfParser.addDocument(document);
-      
-      // 删除临时文件
-      fs.unlinkSync(filePath);
-      
-      return NextResponse.json({
-        success: true,
-        document: {
-          id: document.id,
-          title: document.title,
-          category: document.category,
-          pages: document.pages,
-          chunks: document.chunks.length,
-          extractedAt: document.extractedAt
-        },
-        stats: pdfParser.getStats()
-      });
+    // 处理每一页
+    for (let pageNum = 0; pageNum < pageCount; pageNum++) {
+      try {
+        // 将PDF页面渲染为PNG
+        const pdfPage = pdfDoc.getPages()[pageNum];
+        const { width, height } = pdfPage.getSize();
+        
+        // 创建一个新的PDF文档，只包含当前页面
+        const singlePagePdf = await PDFDocument.create();
+        const [copiedPage] = await singlePagePdf.copyPages(pdfDoc, [pageNum]);
+        singlePagePdf.addPage(copiedPage);
+        
+        // 将单页PDF转换为PNG格式
+        const pngBytes = await singlePagePdf.saveAsBase64();
+        const pngBuffer = Buffer.from(pngBytes, 'base64');
+        
+        // 使用sharp处理图像
+        const image = await sharp(pngBuffer)
+          .png()
+          .resize(2048, 2048, {
+            fit: 'inside',
+            withoutEnlargement: true
+          })
+          .toBuffer();
+        
+        const imageBase64 = image.toString('base64');
 
-    } catch (parseError) {
-      // 删除临时文件
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+        // 设置超时控制
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
+
+        const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: MODEL,
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  {
+                    type: 'text',
+                    text: '请识别图片中的所有中文文字内容，完整准确地提取出来，保持原有的格式和结构。'
+                  },
+                  {
+                    type: 'image_url',
+                    image_url: {
+                      url: `data:image/png;base64,${imageBase64}`
+                    }
+                  }
+                ]
+              }
+            ],
+            max_tokens: 4000,
+            temperature: 0.1
+          }),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`页面 ${pageNum + 1} OCR识别失败`);
+        }
+
+        const data = await response.json();
+        const pageContent = data.choices[0]?.message?.content || '';
+        allContent.push(`--- 第${pageNum + 1}页 ---\n${pageContent}`);
+
+      } catch (error) {
+        console.error(`处理第${pageNum + 1}页时出错:`, error);
+        throw error;
       }
-      
-      console.error('PDF解析错误:', parseError);
-      return NextResponse.json(
-        { error: 'PDF文件解析失败，请确保文件格式正确' },
-        { status: 500 }
-      );
     }
+
+    return NextResponse.json({
+      success: true,
+      content: allContent.join('\n\n'),
+      filename: file.name
+    });
 
   } catch (error) {
-    console.error('文件上传错误:', error);
+    console.error('OCR处理错误:', error);
     return NextResponse.json(
-      { error: '文件上传失败' },
+      { error: '文件处理失败，请重试' },
       { status: 500 }
     );
   }
 }
-
-export async function GET() {
-  try {
-    const stats = pdfParser.getStats();
-    return NextResponse.json({
-      success: true,
-      stats
-    });
-  } catch (error) {
-    console.error('获取知识库统计失败:', error);
-    return NextResponse.json(
-      { error: '获取知识库信息失败' },
-      { status: 500 }
-    );
-  }
-} 
