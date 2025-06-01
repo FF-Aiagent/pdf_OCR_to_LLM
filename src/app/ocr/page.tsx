@@ -6,34 +6,101 @@ import Button from '@/components/ui/Button';
 
 export default function OCRPage() {
   const [isProcessing, setIsProcessing] = useState(false);
-  const [result, setResult] = useState('');
+  const [result, setResult] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file && file.type === 'application/pdf') {
       setSelectedFile(file);
+      setResult(null);
+      setError(null);
     } else {
-      alert('请选择PDF文件');
+      setError('请选择PDF文件');
     }
   };
 
   const handleProcess = async () => {
     if (!selectedFile) {
-      alert('请先选择PDF文件');
+      setError('请先选择PDF文件');
       return;
     }
 
     setIsProcessing(true);
+    setError(null);
+    setProgress(0);
+
     try {
-      // 这里将调用后端API进行OCR处理
-      await new Promise(resolve => setTimeout(resolve, 2000)); // 模拟处理时间
-      setResult('OCR识别完成！这里将显示识别结果...');
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      // 模拟上传进度
+      const progressInterval = setInterval(() => {
+        setProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            return prev;
+          }
+          return prev + 10;
+        });
+      }, 500);
+
+      const response = await fetch('/api/knowledge/upload', {
+        method: 'POST',
+        body: formData
+      });
+
+      clearInterval(progressInterval);
+      setProgress(100);
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setResult(data.content);
+        } else {
+          throw new Error(data.error || '处理失败');
+        }
+      } else {
+        throw new Error('上传失败');
+      }
     } catch (error) {
       console.error('处理失败:', error);
-      alert('处理失败，请重试');
+      setError(error instanceof Error ? error.message : '处理失败，请重试');
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleDownload = async (format: 'json' | 'txt') => {
+    if (!result) return;
+
+    try {
+      const response = await fetch(`/api/knowledge/download?format=${format}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ content: result })
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `OCR结果_${new Date().toISOString()}.${format}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      } else {
+        throw new Error('下载失败');
+      }
+    } catch (error) {
+      console.error('下载失败:', error);
+      setError('下载失败，请重试');
     }
   };
 
@@ -66,6 +133,7 @@ export default function OCRPage() {
                   onChange={handleFileSelect}
                   className="hidden"
                   id="pdf-upload"
+                  disabled={isProcessing}
                 />
                 <label
                   htmlFor="pdf-upload"
@@ -94,6 +162,12 @@ export default function OCRPage() {
                 </div>
               )}
 
+              {error && (
+                <div className="mt-4 p-4 bg-red-50 rounded-lg">
+                  <p className="text-sm text-red-600">{error}</p>
+                </div>
+              )}
+
               <div className="mt-6">
                 <Button
                   onClick={handleProcess}
@@ -113,14 +187,25 @@ export default function OCRPage() {
                 <CardTitle>处理中...</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center space-x-4">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                  <div>
-                    <p className="text-gray-900">正在进行OCR识别</p>
-                    <p className="text-sm text-gray-600">
-                      使用SiliconFlow API处理您的文档
-                    </p>
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-4">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    <div>
+                      <p className="text-gray-900">正在进行OCR识别</p>
+                      <p className="text-sm text-gray-600">
+                        使用SiliconFlow API处理您的文档
+                      </p>
+                    </div>
                   </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${progress}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-sm text-gray-600 text-center">
+                    已完成 {progress}%
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -136,19 +221,40 @@ export default function OCRPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="bg-gray-100 p-4 rounded-lg">
+                <div className="bg-gray-100 p-4 rounded-lg max-h-96 overflow-y-auto">
                   <pre className="whitespace-pre-wrap text-sm">
                     {result}
                   </pre>
                 </div>
                 <div className="mt-4 flex space-x-4">
-                  <Button variant="outline">
+                  <Button variant="outline" onClick={() => handleDownload('json')}>
                     下载JSON格式
                   </Button>
-                  <Button variant="outline">
+                  <Button variant="outline" onClick={() => handleDownload('txt')}>
                     下载TXT格式
                   </Button>
-                  <Button>
+                  <Button onClick={() => {
+                    // 添加到知识库
+                    fetch('/api/knowledge/add', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json'
+                      },
+                      body: JSON.stringify({
+                        content: result,
+                        filename: selectedFile?.name
+                      })
+                    }).then(response => {
+                      if (response.ok) {
+                        alert('成功添加到知识库');
+                      } else {
+                        throw new Error('添加失败');
+                      }
+                    }).catch(error => {
+                      console.error('添加失败:', error);
+                      setError('添加到知识库失败，请重试');
+                    });
+                  }}>
                     添加到知识库
                   </Button>
                 </div>
@@ -159,4 +265,4 @@ export default function OCRPage() {
       </div>
     </div>
   );
-} 
+}
