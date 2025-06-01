@@ -1,0 +1,3 @@
+import base64, requests; f=open("ocr_test_page.png","rb"); b64=base64.b64encode(f.read()).decode(); f.close(); prompt="你是OCR专家，请准确识别图片中的每一个汉字："; r=requests.post("https://api.siliconflow.cn/v1/chat/completions",headers={"Authorization":"Bearer sk-qnczgrftmuzuyhyfdroapmqqqnefqpvbwtjikrnlbzbimpkw","Content-Type":"application/json"},json={"model":"Qwen/QVQ-72B-Preview","messages":[{"role":"user","content":[{"type":"text","text":prompt},{"type":"image_url","image_url":{"url":f"data:image/png;base64,{b64}"}}]}],"max_tokens":3000,"temperature":0.1},timeout=60); content=r.json().get("choices",[{}])[0].get("message",{}).get("content",""); print(f"提示词2结果长度: {len(content)}"); open("result_2.txt","w",encoding="utf-8").write(f"提示词: {prompt}
+{=*50}
+{content}")

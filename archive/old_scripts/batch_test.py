@@ -1,0 +1,1 @@
+import os; print("开始批量处理..."); pdf_files = [os.path.join(root, file) for root, dirs, files in os.walk("knowledge_data") for file in files if file.lower().endswith(".pdf")]; print(f"发现 {len(pdf_files)} 个PDF文件"); os.makedirs("processed_knowledge_base/by_document", exist_ok=True); print("目录创建完成")

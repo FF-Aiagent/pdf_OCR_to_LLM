@@ -1,7 +1,7 @@
 {
-  "name": "fortune-prediction",
+  "name": "ai-ocr-knowledge-base",
   "version": "0.1.0",
-  "description": "基于倪海厦理论的运势预测和周易占卜网站",
+  "description": "基于SiliconFlow API的AI OCR知识库处理系统，专门用于倪海夏中医文档的OCR识别和知识库构建",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -36,12 +36,15 @@
     "typescript": "^5"
   },
   "keywords": [
-    "紫薇斗数",
-    "周易",
-    "占卜",
-    "运势预测",
-    "倪海厦",
-    "命理"
+    "AI",
+    "OCR",
+    "知识库",
+    "PDF处理",
+    "SiliconFlow",
+    "倪海夏",
+    "中医文档",
+    "文档识别",
+    "知识图谱"
   ],
   "author": "Your Name",
   "license": "MIT"

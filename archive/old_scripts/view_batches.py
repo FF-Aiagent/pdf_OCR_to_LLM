@@ -1,0 +1,1 @@
+import os; from pathlib import Path; pdfs=sorted(list(Path("knowledge_data").rglob("*.pdf"))); print(f"📊 总PDF: {len(pdfs)}个"); print(f"📦 分为: {(len(pdfs)+6)//7}批次 (每批7个)"); [print(f"批次{i//7+1}: {pdf.name}") for i,pdf in enumerate(pdfs[:21])]
