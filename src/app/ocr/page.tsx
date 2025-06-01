@@ -32,15 +32,16 @@ export default function OCRPage() {
     setError(null);
     setProgress(0);
 
+    let progressInterval: NodeJS.Timeout | null = null;
+
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
 
       // 模拟上传进度
-      const progressInterval = setInterval(() => {
+      progressInterval = setInterval(() => {
         setProgress(prev => {
           if (prev >= 90) {
-            clearInterval(progressInterval);
             return prev;
           }
           return prev + 10;
@@ -51,9 +52,6 @@ export default function OCRPage() {
         method: 'POST',
         body: formData
       });
-
-      clearInterval(progressInterval);
-      setProgress(100);
 
       if (response.ok) {
         const data = await response.json();
@@ -69,6 +67,10 @@ export default function OCRPage() {
       console.error('处理失败:', error);
       setError(error instanceof Error ? error.message : '处理失败，请重试');
     } finally {
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+      setProgress(100);
       setIsProcessing(false);
     }
   };
