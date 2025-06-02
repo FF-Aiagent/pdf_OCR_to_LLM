@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Header from "@/components/layout/Header";
 
@@ -7,7 +7,11 @@ export const metadata: Metadata = {
   description: "基于SiliconFlow API的AI OCR知识库处理系统，专门用于倪海夏中医文档的OCR识别和知识库构建",
   keywords: ["AI", "OCR", "知识库", "PDF处理", "SiliconFlow", "倪海夏", "中医文档", "文档识别", "知识图谱"],
   authors: [{ name: "AI OCR Team" }],
-  viewport: "width=device-width, initial-scale=1",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({
