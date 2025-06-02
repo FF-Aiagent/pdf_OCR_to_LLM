@@ -39,6 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
 # Python
 __pycache__/
 *.py[cod]
@@ -47,6 +48,7 @@ __pycache__/
 venv/
 env/
 ENV/
+
 # Processing outputs and temporary files
 *.png
 *.jpg
@@ -55,6 +57,20 @@ ENV/
 *.log
 tianji_*.txt
 processed_knowledge_base/
+
 # Large PDF files
 knowledge_data/*.pdf
 knowledge_data/**/*.pdf
+
+# Temporary and test files (new structure)
+temp/
+temp_files/
+uploads/*.pdf
+uploads/**/*.pdf
+
+# Archive files
+archive/
+
+# Tool outputs
+tools/scripts/*.log
+tools/scripts/output/
