@@ -1,0 +1,21 @@
+# 🔧 Vercel环境变量配置模板
+# 复制以下内容到 Vercel Dashboard → Settings → Environment Variables
+
+# 必需配置
+SILICONFLOW_API_KEY=sk-your-actual-api-key-here
+SILICONFLOW_BASE_URL=https://api.siliconflow.cn/v1
+SILICONFLOW_MODEL=Qwen/Qwen2.5-VL-72B-Instruct
+
+# 可选配置
+NODE_ENV=production
+
+# 配置说明:
+# 1. 登录 https://vercel.com/dashboard
+# 2. 选择项目 pdf_OCR_to_LLM
+# 3. 进入 Settings → Environment Variables
+# 4. 添加上述变量，每个变量一行
+# 5. 设置完成后重新部署项目
+
+# 获取API密钥:
+# 访问 https://www.siliconflow.cn
+# 注册并登录后在控制台创建API密钥
